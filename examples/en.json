@@ -1,0 +1,19 @@
+{
+  "app": {
+    "name": "My App",
+    "welcome": "Welcome to our app",
+    "settings": {
+      "theme": "Theme",
+      "language": "Language"
+    }
+  },
+  "common": {
+    "save": "Save",
+    "cancel": "Cancel",
+    "delete": "Delete"
+  },
+  "errors": {
+    "notFound": "Not found",
+    "serverError": "Server error"
+  }
+}

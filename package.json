@@ -1,0 +1,32 @@
+{
+  "name": "easy-json-file-translate",
+  "version": "1.0.0",
+  "description": "Easy translate json-lang files and detect missing keys",
+  "keywords": [
+    "i18n",
+    "translation",
+    "multilang-tools"
+  ],
+  "license": "MIT",
+  "author": "Ariel Leyva",
+  "type": "commonjs",
+  "main": "dist/cli.js",
+  "bin": {
+    "json-translate": "dist/cli.js"
+  },
+  "scripts": {
+    "build": "tsc",
+    "start": "tsx src/cli.ts",
+    "dev": "tsx src/cli.ts",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "packageManager": "pnpm@11.21.0+sha512.521705bce689924eac72f5a3587122f362689ef6571e55ba80076fd637c11132ecffada26fad4ea79c485bfddbfd3d5a2a5b05805a77e893de71ec8a6cca3bb1",
+  "dependencies": {
+    "commander": "^15.0.0"
+  },
+  "devDependencies": {
+    "@types/node": "^26.2.0",
+    "tsx": "^4.19.0",
+    "typescript": "^5.7.0"
+  }
+}
