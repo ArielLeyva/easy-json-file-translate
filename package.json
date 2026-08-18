@@ -1,6 +1,6 @@
 {
   "name": "easy-json-file-translate",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "Compare JSON translation files and auto-translate missing keys via AI",
   "keywords": [
     "i18n",
