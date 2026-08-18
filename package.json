@@ -1,11 +1,14 @@
 {
   "name": "easy-json-file-translate",
   "version": "1.0.0",
-  "description": "Easy translate json-lang files and detect missing keys",
+  "description": "Compare JSON translation files and auto-translate missing keys via AI",
   "keywords": [
     "i18n",
     "translation",
-    "multilang-tools"
+    "multilang-tools",
+    "json",
+    "localization",
+    "internationalization"
   ],
   "license": "MIT",
   "author": "Ariel Leyva",
@@ -18,8 +21,20 @@
     "build": "tsc",
     "start": "tsx src/cli.ts",
     "dev": "tsx src/cli.ts",
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "prepare": "pnpm build && chmod +x dist/cli.js"
   },
+  "engines": {
+    "node": ">=18"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/ArielLeyva/easy-json-file-translate"
+  },
+  "bugs": {
+    "url": "https://github.com/ArielLeyva/easy-json-file-translate/issues"
+  },
+  "homepage": "https://github.com/ArielLeyva/easy-json-file-translate#readme",
   "packageManager": "pnpm@11.21.0+sha512.521705bce689924eac72f5a3587122f362689ef6571e55ba80076fd637c11132ecffada26fad4ea79c485bfddbfd3d5a2a5b05805a77e893de71ec8a6cca3bb1",
   "dependencies": {
     "commander": "^15.0.0"

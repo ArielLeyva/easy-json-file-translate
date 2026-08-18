@@ -1,0 +1,24 @@
+# Source files
+src/
+examples/
+tsconfig.json
+pnpm-workspace.yaml
+
+# Development files
+.git/
+.gitignore
+README.md
+*.log
+
+# Lock files (use pnpm-lock.yaml in production)
+package-lock.json
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
