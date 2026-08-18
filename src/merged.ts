@@ -16,13 +16,13 @@ export async function mergeApiResults(
       if (mode === "quit") break;
 
       for (let entry of missing) {
-        if (mode === "all") {
-          entry.generated = translatedValue;
-          console.log(`   ${path}: ✓ (auto-approved)`);
-          continue;
-        }
-
         if (entry.key == path) {
+          if (mode === "all") {
+            entry.generated = translatedValue;
+            console.log(`   ${path}: ✓ (auto-approved)`);
+            continue;
+          }
+
           const answer = await askConfirm(entry, translatedValue);
 
           if (answer === "all") {

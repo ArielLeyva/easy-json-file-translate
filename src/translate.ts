@@ -56,6 +56,7 @@ export function buildBatches(
       currentChars += count;
     }
   }
+  batches.push(currentBatch);
 
   return batches;
 }
@@ -86,7 +87,7 @@ export async function translateKeys(
 
   const batches = buildBatches(keys, maxChars);
   const results: StringRecord = {};
-
+  
   console.log(`\nTranslating ${keys.length} keys...`);
 
   let progress = 0;

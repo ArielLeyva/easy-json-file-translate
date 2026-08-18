@@ -49,7 +49,7 @@ async function main() {
   const { source, target } = getFiles(opts);
 
   console.log("\n┌─────────────────────────────────────────────────┐");
-  console.log("│  json-translate                                  │");
+  console.log("│  json-translate                                 │");
   console.log("└─────────────────────────────────────────────────┘");
   console.log(
     `Source: ${source.name} (${source.lang.name}${source.lang.infer ? " (specified)" : " (inferred)"})`,
