@@ -1,7 +1,7 @@
 export interface LangFileEntry {
   name: string;
   path: string;
-  lang: Lang;
+  lang?: Lang;
   entries: LangEntry[];
   missing: LangEntry[];
 }
@@ -53,6 +53,48 @@ export const LANG_MAP: Record<string, string> = {
   id: "Indonesian",
   uk: "Ukrainian",
   cs: "Czech",
+  sv: "Swedish",
+  da: "Danish",
+  no: "Norwegian",
+  fi: "Finnish",
+  is: "Icelandic",
+  el: "Greek",
+  hu: "Hungarian",
+  ro: "Romanian",
+  bg: "Bulgarian",
+  sk: "Slovak",
+  hr: "Croatian",
+  sr: "Serbian",
+  sl: "Slovenian",
+  lt: "Lithuanian",
+  lv: "Latvian",
+  et: "Estonian",
+  ca: "Catalan",
+  gl: "Galician",
+  he: "Hebrew",
+  fa: "Persian",
+  ur: "Urdu",
+  bn: "Bengali",
+  ta: "Tamil",
+  te: "Telugu",
+  mr: "Marathi",
+  gu: "Gujarati",
+  kn: "Kannada",
+  ml: "Malayalam",
+  pa: "Punjabi",
+  si: "Sinhala",
+  my: "Burmese",
+  km: "Khmer",
+  lo: "Lao",
+  ka: "Georgian",
+  hy: "Armenian",
+  az: "Azerbaijani",
+  uz: "Uzbek",
+  kk: "Kazakh",
+  sw: "Swahili",
+  af: "Afrikaans",
+  zu: "Zulu",
+  am: "Amharic",
 };
 
 export interface TranslateOptions {
@@ -78,5 +120,5 @@ export type StringRecord = Record<string, string>;
 
 export interface LangFileEntries {
   source: LangFileEntry;
-  target: LangFileEntry;
+  targets: LangFileEntry[];
 }

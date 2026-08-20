@@ -7,6 +7,7 @@ export async function mergeApiResults(
   opts: CliOptions,
   translations: StringRecord,
   missing: LangEntry[],
+  targetPath: string,
 ) {
   if (opts.interactive) {
     console.log("\nInteractive mode - confirm each translation:\n");
@@ -49,13 +50,13 @@ export async function mergeApiResults(
       for (const entry of translated) {
         entries[entry.key] = entry.generated!;
       }
-      await applyMissingKeys(opts.file, entries);
+      await applyMissingKeys(targetPath, entries);
       console.log(`\n✅ Applied ${translated.length} translations.\n`);
     } else {
       console.log("\n⚠️  No translations applied.\n");
     }
   } else {
-    await applyMissingKeys(opts.file, translations);
+    await applyMissingKeys(targetPath, translations);
 
     console.log("\n✅ Translations applied:");
     for (const [path, value] of Object.entries(translations)) {
