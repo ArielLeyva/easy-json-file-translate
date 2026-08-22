@@ -127,8 +127,8 @@ async function resolveUnknownLanguages(
       code = await iq.input({
         message: `Enter language code for "${target.name}":`,
         validate: (val: string) => {
-          if (langFromCode(val)) return true;
-          return `Unknown code. Available: ${validCodes}`;
+          if (val.trim()) return true;
+          return "Language code cannot be empty";
         },
       });
     } else {
@@ -139,12 +139,26 @@ async function resolveUnknownLanguages(
       process.exit(1);
     }
 
-    const lang = langFromCode(code);
-    if (!lang) {
-      // shouldn't happen because of validate, but guard anyway
-      throw new Error(`Invalid language code: ${code}`);
+    const trimmedCode = code.trim();
+    const lowerCode = trimmedCode.toLowerCase();
+    const canonical = LANG_MAP[lowerCode];
+
+    if (canonical) {
+      target.lang = { code: lowerCode, name: canonical, infer: false };
+      continue;
     }
-    target.lang = lang;
+
+    // Unknown code: ask the user for a display name and keep going.
+    // (The no-TTY case already exited above, so iq is guaranteed here.)
+    const customName = await iq!.input({
+      message: `Code "${trimmedCode}" is not in the supported list. Enter the language name (e.g. "Basque"):`,
+      validate: (val: string) => {
+        if (val.trim()) return true;
+        return "Language name cannot be empty";
+      },
+    });
+
+    target.lang = { code: lowerCode, name: customName.trim(), infer: false };
   }
 
   return targets;
@@ -158,9 +172,18 @@ async function confirmProceed(message: string, fallback: boolean): Promise<boole
 
 function printTargetHeader(target: LangFileEntry, index: number, total: number) {
   const lang = target.lang;
-  const langLabel = lang
-    ? `${lang.name}${lang.infer ? " (inferred)" : " (specified)"}`
-    : "(unknown)";
+  let langLabel: string;
+  if (!lang) {
+    langLabel = "(unknown)";
+  } else {
+    const isCustom = !(lang.code in LANG_MAP);
+    const tag = lang.infer
+      ? " (inferred)"
+      : isCustom
+      ? " (custom)"
+      : " (specified)";
+    langLabel = `${lang.name}${tag}`;
+  }
   console.log("");
   console.log(
     `── Target ${index + 1}/${total}: ${target.name}  [${langLabel}] ──`,

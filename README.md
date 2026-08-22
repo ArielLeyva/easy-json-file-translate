@@ -19,7 +19,7 @@ This tool was born out of necessity. Many projects use JSON files as their conte
 - Compare two JSON translation files and detect missing or extra keys
 - **Multi-target support** — point at a directory and pick which files to translate, or pass a single file like before
 - **Interactive target selection** — checkbox UI (space to toggle) when multiple candidates are found
-- **Language auto-inference with manual fallback** — if a filename doesn't reveal the language, you get prompted for the code
+- **Language auto-inference with manual fallback** — if a filename doesn't reveal the language, you get prompted for the code; unrecognized codes can be rescued by typing the language name
 - Auto-translate missing keys via AI (DeepSeek, OpenAI-compatible APIs)
 - Batch translations to minimize token usage
 - Dry-run mode: see what would change without writing anything
@@ -146,6 +146,15 @@ If any target's filename doesn't include a recognizable language code (e.g. `loc
 
 The full list of supported codes is in [Supported language codes](#supported-language-codes).
 
+If you type a code that isn't in the supported list (for example, a less common language like Basque → `eu`), the tool won't refuse to continue — it will ask you for the display name and use that for the AI prompt:
+
+```
+? Enter language code for "locales.json": eu
+? Code "eu" is not in the supported list. Enter the language name (e.g. "Basque"): Basque
+```
+
+Custom targets are tagged as `(custom)` in the per-target header so you can tell them apart from the recognized ones. They are processed exactly like any other target — only the language *name* sent to the AI model is the one you provided.
+
 ### Non-interactive environments (CI, pipes, scripts)
 
 When there's no TTY available, the interactive checklist and the language prompt are skipped:
@@ -183,7 +192,7 @@ The following 62 codes are recognized when inferring language from filenames or 
 | `kk` | Kazakh | `sw` | Swahili | `af` | Afrikaans |
 | `zu` | Zulu | `am` | Amharic | | |
 
-If a code you need is missing, open an issue — the list lives in `src/types.ts` (`LANG_MAP`).
+If a code you need is missing, you can either open an issue or just type the code at the prompt and provide a display name when asked — the tool will keep going either way. The list lives in `src/types.ts` (`LANG_MAP`).
 
 ## API Configuration
 
