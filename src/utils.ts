@@ -2,6 +2,7 @@ import * as fs from "fs/promises";
 import * as path from "path";
 import { CliOptions, Lang, LangFileEntries, LangFileEntry } from "./types";
 import { getLangByCode, inferLang } from "./translate";
+import { Command } from "commander";
 
 /**
  * Resolve which JSON files should be considered as translation targets.
@@ -12,9 +13,6 @@ import { getLangByCode, inferLang } from "./translate";
  *  - If `-f/--file` is a directory: list every `*.json` inside it (excluding
  *    the base file if it lives in the same dir).
  *  - If `-f/--file` is a file: use that file as the only candidate.
- *
- * For each candidate, language is inferred from the filename. When inference
- * fails, `lang` is left undefined so the CLI can prompt the user.
  */
 export default async function getFiles(
   opts: CliOptions,
@@ -66,9 +64,7 @@ export default async function getFiles(
 /**
  * Resolve the list of target file paths based on CLI options.
  *
- * Returns the resolved absolute paths. The caller is responsible for
- * verifying that at least one target was found and that each target is
- * actually a file.
+ * Returns the resolved absolute paths.
  */
 async function resolveTargetCandidates(
   opts: CliOptions,
@@ -82,9 +78,8 @@ async function resolveTargetCandidates(
     return listJsonFiles(baseDir, baseName);
   }
 
-  const targetPath = path.resolve(opts.file);
-
   // Case 2: --file is a directory → list *.json there
+  const targetPath = path.resolve(opts.file);
   let stat;
   try {
     stat = await fs.stat(targetPath);
@@ -116,7 +111,7 @@ async function resolveTargetCandidates(
 
 /**
  * List every `*.json` file inside `dirPath`, sorted alphabetically,
- * optionally excluding a specific filename (typically the base file).
+ * optionally excluding a specific filename.
  */
 export async function listJsonFiles(
   dirPath: string,
@@ -163,4 +158,14 @@ export function setNestedValue(
   }
 
   current[keys[keys.length - 1]] = value;
+}
+
+/**
+ * Commander tracks the origin of each option value. We use that to tell
+ * "user passed -u" apart from "user got the default". This is what gates
+ * the interactive prompts.
+ */
+export function wasOptionProvided(program: Command, optionName: string): boolean {
+  const source = program.getOptionValueSource(optionName);
+  return source === "cli" || source === "env" || source === "config";
 }

@@ -3,9 +3,12 @@
 import { Command } from "commander";
 import { compareFiles } from "./compare";
 import { translateKeys } from "./translate";
-import getFiles from "./utils";
+import getFiles, { wasOptionProvided } from "./utils";
 import { CliOptions, LANG_MAP, Lang, LangEntry, LangFileEntry } from "./types";
 import { mergeApiResults } from "./merged";
+import { confirmProceed, pickTargetsInteractive, resolveUnknownLanguages } from "./target";
+import { loadInquirer } from "./inquire";
+import { promptApiKey, promptModel, selectProviderUrl } from "./ai";
 
 const program = new Command();
 
@@ -45,237 +48,6 @@ program
 
 const opts = program.opts<CliOptions>();
 
-/**
- * @inquirer/prompts is ESM-only. The project is compiled to CJS, so we load
- * it dynamically. Falls back to non-interactive defaults when no TTY is
- * available (CI / pipes).
- */
-type InquirerModule = typeof import("@inquirer/prompts");
-let inquirer: InquirerModule | null = null;
-async function loadInquirer(): Promise<InquirerModule | null> {
-  if (inquirer) return inquirer;
-  if (!process.stdin.isTTY) return null;
-  try {
-    inquirer = (await import("@inquirer/prompts")) as InquirerModule;
-    return inquirer;
-  } catch {
-    return null;
-  }
-}
-
-function langFromCode(code: string | undefined): Lang | null {
-  if (!code) return null;
-  const lower = code.toLowerCase().trim();
-  const name = LANG_MAP[lower];
-  if (!name) return null;
-  return { code: lower, name, infer: false };
-}
-
-async function pickTargetsInteractive(
-  candidates: LangFileEntry[],
-): Promise<LangFileEntry[] | null> {
-  // 0 or 1 candidates → nothing to multi-select, take what we have
-  if (candidates.length <= 1) {
-    return candidates;
-  }
-
-  const iq = await loadInquirer();
-  if (!iq) {
-    console.log(
-      "ℹ️  No interactive terminal detected — processing all targets. Run directly (node dist/cli.js) to enable the checklist.",
-    );
-    return candidates;
-  }
-
-  const choices = candidates.map((t) => {
-    const inferred = t.lang ? ` (${t.lang.name})` : " (language unknown)";
-    return {
-      name: `${t.name}${inferred}`,
-      value: t.path,
-      checked: true,
-    };
-  });
-
-  const selected = await iq.checkbox<string>({
-    message: "Select translation targets (space to toggle, enter to confirm):",
-    pageSize: Math.min(choices.length + 2, 20),
-    instructions: false,
-    choices,
-  });
-
-  if (selected.length === 0) {
-    return [];
-  }
-
-  return candidates.filter((t) => selected.includes(t.path));
-}
-
-async function resolveUnknownLanguages(
-  targets: LangFileEntry[],
-): Promise<LangFileEntry[]> {
-  const unresolved = targets.filter((t) => !t.lang);
-  if (unresolved.length === 0) return targets;
-
-  const iq = await loadInquirer();
-  const validCodes = Object.keys(LANG_MAP).join(", ");
-
-  for (const target of targets) {
-    if (target.lang) continue;
-
-    let code: string | undefined = undefined;
-    if (iq) {
-      code = await iq.input({
-        message: `Enter language code for "${target.name}":`,
-        validate: (val: string) => {
-          if (val.trim()) return true;
-          return "Language code cannot be empty";
-        },
-      });
-    } else {
-      console.error(
-        `\n❌ Cannot infer language for "${target.name}" and no TTY is available to prompt.`,
-      );
-      console.error(`   Use --lang <code> or rename the file to include one of: ${validCodes}\n`);
-      process.exit(1);
-    }
-
-    const trimmedCode = code.trim();
-    const lowerCode = trimmedCode.toLowerCase();
-    const canonical = LANG_MAP[lowerCode];
-
-    if (canonical) {
-      target.lang = { code: lowerCode, name: canonical, infer: false };
-      continue;
-    }
-
-    // Unknown code: ask the user for a display name and keep going.
-    // (The no-TTY case already exited above, so iq is guaranteed here.)
-    const customName = await iq!.input({
-      message: `Code "${trimmedCode}" is not in the supported list. Enter the language name (e.g. "Basque"):`,
-      validate: (val: string) => {
-        if (val.trim()) return true;
-        return "Language name cannot be empty";
-      },
-    });
-
-    target.lang = { code: lowerCode, name: customName.trim(), infer: false };
-  }
-
-  return targets;
-}
-
-async function confirmProceed(message: string, fallback: boolean): Promise<boolean> {
-  const iq = await loadInquirer();
-  if (!iq) return fallback;
-  return iq.confirm({ message, default: fallback });
-}
-
-type ProviderPreset = {
-  name: string;
-  url: string;
-  defaultModel: string;
-};
-
-const CUSTOM_PROVIDER_VALUE = "__custom__";
-
-/**
- * Curated list of OpenAI-compatible providers that work with translate.ts
- * (which only speaks the /chat/completions + Bearer auth + messages[] protocol).
- * Keep this list short and battle-tested — users can always pick "Other"
- * for custom endpoints.
- */
-const PROVIDER_PRESETS: ProviderPreset[] = [
-  { name: "DeepSeek",        url: "https://api.deepseek.com/v1",                          defaultModel: "deepseek-chat" },
-  { name: "OpenAI",          url: "https://api.openai.com/v1",                             defaultModel: "gpt-4o-mini" },
-  { name: "Google Gemini",   url: "https://generativelanguage.googleapis.com/v1beta/openai", defaultModel: "gemini-2.0-flash" },
-  { name: "Groq",            url: "https://api.groq.com/openai/v1",                       defaultModel: "llama-3.3-70b-versatile" },
-  { name: "OpenRouter",      url: "https://openrouter.ai/api/v1",                          defaultModel: "openai/gpt-4o-mini" },
-  { name: "Mistral",         url: "https://api.mistral.ai/v1",                             defaultModel: "mistral-small-latest" },
-  { name: "Ollama (local)",  url: "http://localhost:11434/v1",                             defaultModel: "llama3.2" },
-];
-
-function findPresetByUrl(url: string): ProviderPreset | undefined {
-  return PROVIDER_PRESETS.find((p) => p.url === url);
-}
-
-/**
- * Commander tracks the origin of each option value. We use that to tell
- * "user passed -u" apart from "user got the default". This is what gates
- * the interactive prompts.
- */
-function wasOptionProvided(optionName: string): boolean {
-  const source = program.getOptionValueSource(optionName);
-  return source === "cli" || source === "env" || source === "config";
-}
-
-async function selectProviderUrl(): Promise<{ url: string; suggestedModel: string }> {
-  const iq = await loadInquirer();
-  if (!iq) {
-    throw new Error(
-      "No interactive terminal available to pick a provider URL. Pass -u <url>.",
-    );
-  }
-
-  const choices = [
-    ...PROVIDER_PRESETS.map((p) => ({ name: p.name, value: p.url })),
-    { name: "Other (enter custom URL)", value: CUSTOM_PROVIDER_VALUE },
-  ];
-
-  const selected = await iq.select<string>({
-    message: "Select the AI provider URL:",
-    choices,
-    pageSize: choices.length + 2,
-  });
-
-  if (selected === CUSTOM_PROVIDER_VALUE) {
-    const customUrl = await iq.input({
-      message: "Enter the API base URL:",
-      validate: (val: string) => {
-        const trimmed = val.trim();
-        if (!trimmed) return "URL cannot be empty";
-        try {
-          new URL(trimmed);
-          return true;
-        } catch {
-          return "Must be a valid URL (e.g. https://api.example.com/v1)";
-        }
-      },
-    });
-    return { url: customUrl.trim(), suggestedModel: "gpt-4o-mini" };
-  }
-
-  const preset = findPresetByUrl(selected);
-  return {
-    url: selected,
-    suggestedModel: preset?.defaultModel ?? "gpt-4o-mini",
-  };
-}
-
-async function promptModel(defaultModel: string): Promise<string> {
-  const iq = await loadInquirer();
-  if (!iq) return defaultModel;
-  return iq.input({
-    message: "Model name:",
-    default: defaultModel,
-    validate: (val: string) =>
-      val.trim() ? true : "Model name cannot be empty",
-  });
-}
-
-async function promptApiKey(): Promise<string> {
-  const iq = await loadInquirer();
-  if (!iq) {
-    throw new Error(
-      "No API key provided. Use -k <key> or set OPENAI_API_KEY env var.",
-    );
-  }
-  return iq.password({
-    message: "API key:",
-    validate: (val: string) =>
-      val.trim() ? true : "API key cannot be empty",
-  });
-}
-
 function printTargetHeader(target: LangFileEntry, index: number, total: number) {
   const lang = target.lang;
   let langLabel: string;
@@ -297,10 +69,6 @@ function printTargetHeader(target: LangFileEntry, index: number, total: number) 
 }
 
 async function main() {
-  // URL/model/api-key start with whatever the user provided (or commander
-  // defaults). The actual prompt happens LATER, after the user has seen
-  // what's missing — that way they don't waste time entering credentials
-  // for nothing.
   let url = opts.url;
   let model = opts.model;
   let apiKey = opts.apiKey || process.env.OPENAI_API_KEY;
@@ -315,8 +83,7 @@ async function main() {
     process.exit(1);
   }
 
-  // 2. Multi-select targets (checkbox appears whenever there's >1 candidate,
-  //    regardless of whether -f was a file, a directory, or omitted)
+  // 2. Multi-select targets
   const picked = await pickTargetsInteractive(initialTargets);
   if (!picked || picked.length === 0) {
     console.log("\nNo targets selected. Exiting.\n");
@@ -346,8 +113,6 @@ async function main() {
   console.log(`Targets: ${targets.length}`);
 
   // 6. First pass: compare each target, show what's missing, collect work.
-  //    We don't touch the API yet — just gather everything the user needs
-  //    to see before deciding whether to provide credentials.
   type TargetWork = { target: LangFileEntry; missing: LangEntry[] };
   const work: TargetWork[] = [];
 
@@ -398,9 +163,8 @@ async function main() {
     return;
   }
 
-  // 8. Now — and only now — ask for URL/model/api-key, because we know
-  //    there's actual work to do.
-  if (!wasOptionProvided("url")) {
+  // 8. Ask for URL/model/api-key, because we know there's actual work to do.
+  if (!wasOptionProvided(program, "url")) {
     const iq = await loadInquirer();
     if (!iq) {
       console.error(
@@ -411,17 +175,17 @@ async function main() {
     const { url: selectedUrl, suggestedModel } = await selectProviderUrl();
     url = selectedUrl;
     // If model wasn't explicitly passed either, suggest the default for this provider
-    if (!wasOptionProvided("model")) {
+    if (!wasOptionProvided(program, "model")) {
       model = (await promptModel(suggestedModel)).trim();
     }
-  } else if (!wasOptionProvided("model")) {
+  } else if (!wasOptionProvided(program, "model")) {
     // URL was provided but model wasn't — prompt with a generic default
     const iq = await loadInquirer();
     if (iq) {
       model = (await promptModel("gpt-4o-mini")).trim();
     } else {
       console.error(
-        `\n⚠️  No model specified and no interactive terminal. Falling back to: ${model}\n`,
+        `\n⚠️ No model specified and no interactive terminal. Falling back to: ${model}\n`,
       );
     }
   }
@@ -437,8 +201,6 @@ async function main() {
   for (const { target, missing } of work) {
     console.log(`\n── Translating ${target.name} (${missing.length} keys) ──`);
     const translations = await translateKeys(missing, {
-      // apiKey is guaranteed non-null here: either -k/env provided it, or
-      // the prompt block above already set it.
       apiKey: apiKey!,
       model,
       url,
