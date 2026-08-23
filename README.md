@@ -56,12 +56,17 @@ npx json-translate -b base.json -f target.json -k YOUR_API_KEY
 ## Quick Start
 
 ```bash
-# Set your API key
+# Set your API key (optional — you'll be prompted if missing)
 export OPENAI_API_KEY=your_api_key
 
 # Compare and translate missing keys
 json-translate -b en.json -f es.json -k $OPENAI_API_KEY
 ```
+
+If you omit `-k`/`OPENAI_API_KEY`, `-m`, or `-u`, the CLI will prompt you
+interactively: first pick a provider URL from a curated list (DeepSeek, OpenAI,
+Google Gemini, Groq, OpenRouter, Mistral, Ollama, or a custom URL), then enter
+the model name, then enter the API key. No flags required to get going.
 
 ## CLI Options
 
@@ -69,9 +74,9 @@ json-translate -b en.json -f es.json -k $OPENAI_API_KEY
 |-------|------|-------------|---------|
 | `-b` | `--base <path>` | Base JSON file with reference translations | Required |
 | `-f` | `--file <path>` | Target JSON file **or directory**. If omitted, the base file's directory is scanned for `*.json` files. | Optional |
-| `-k` | `--api-key <key>` | API key for the AI service | `OPENAI_API_KEY` env |
-| `-m` | `--model <name>` | Model name | `deepseek-chat` |
-| `-u` | `--url <url>` | API base URL | `https://api.deepseek.com/v1` |
+| `-k` | `--api-key <key>` | API key (prompts interactively if omitted) | `OPENAI_API_KEY` env |
+| `-m` | `--model <name>` | Model name (prompts interactively if omitted) | `deepseek-chat` |
+| `-u` | `--url <url>` | API base URL (prompts interactively if omitted) | `https://api.deepseek.com/v1` |
 | `-l` | `--lang <code>` | Target language code (applies when language can't be inferred) | Auto-detected from filename |
 | `-s` | `--source-lang <code>` | Source language code | Auto-detected from filename |
 | `-c` | `--max-chars <n>` | Max characters per batch | `2000` |
