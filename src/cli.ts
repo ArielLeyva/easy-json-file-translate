@@ -3,7 +3,7 @@
 import { Command } from "commander";
 import { compareFiles } from "./compare";
 import { translateKeys } from "./translate";
-import getFiles, { wasOptionProvided } from "./utils";
+import getFiles, { getPackageVersion, wasOptionProvided } from "./utils";
 import { CliOptions, LANG_MAP, Lang, LangEntry, LangFileEntry } from "./types";
 import { mergeApiResults } from "./merged";
 import { confirmProceed, pickTargetsInteractive, resolveUnknownLanguages } from "./target";
@@ -17,7 +17,7 @@ program
   .description(
     "Compare JSON translation files and auto-translate missing keys via AI",
   )
-  .version("1.0.1")
+  .version(getPackageVersion())
   .requiredOption(
     "-b, --base <path>",
     "Base JSON file with reference translations",

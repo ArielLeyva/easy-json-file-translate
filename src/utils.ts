@@ -165,7 +165,15 @@ export function setNestedValue(
  * "user passed -u" apart from "user got the default". This is what gates
  * the interactive prompts.
  */
-export function wasOptionProvided(program: Command, optionName: string): boolean {
+export function wasOptionProvided(
+  program: Command,
+  optionName: string,
+): boolean {
   const source = program.getOptionValueSource(optionName);
   return source === "cli" || source === "env" || source === "config";
+}
+
+export function getPackageVersion(): string {
+  const pkg = require("../package.json");
+  return pkg.version;
 }
