@@ -1,6 +1,12 @@
 import * as fs from "fs/promises";
 import * as path from "path";
-import { CliOptions, Lang, LangFileEntries, LangFileEntry } from "./types";
+import {
+  CliOptions,
+  Lang,
+  LANG_MAP,
+  LangFileEntries,
+  LangFileEntry,
+} from "./types";
 import { getLangByCode, inferLang } from "./translate";
 import { Command } from "commander";
 
@@ -128,7 +134,12 @@ export async function listJsonFiles(
   }
 
   const files = entries
-    .filter((e) => e.isFile() && e.name.toLowerCase().endsWith(".json"))
+    .filter(
+      (e) =>
+        e.isFile() &&
+        !e.name.startsWith(".") &&
+        e.name.toLowerCase().endsWith(".json"),
+    )
     .map((e) => path.join(dirPath, e.name))
     .sort();
 
@@ -136,6 +147,30 @@ export async function listJsonFiles(
     return files.filter((p) => path.basename(p) !== excludeName);
   }
   return files;
+}
+
+export function printTargetHeader(
+  target: LangFileEntry,
+  index: number,
+  total: number,
+) {
+  const lang = target.lang;
+  let langLabel: string;
+  if (!lang) {
+    langLabel = "(unknown)";
+  } else {
+    const isCustom = !(lang.code in LANG_MAP);
+    const tag = lang.infer
+      ? " (inferred)"
+      : isCustom
+        ? " (custom)"
+        : " (specified)";
+    langLabel = `${lang.name}${tag}`;
+  }
+  console.log("");
+  console.log(
+    `── Target ${index + 1}/${total}: ${target.name}  [${langLabel}] ──`,
+  );
 }
 
 /**

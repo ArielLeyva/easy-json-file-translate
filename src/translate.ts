@@ -1,3 +1,4 @@
+import { mergeApiResults } from "./merged";
 import {
   Lang,
   LANG_MAP,
@@ -5,6 +6,8 @@ import {
   TranslateOptions,
   TranslationResponse,
   StringRecord,
+  CliOptions,
+  TargetWork,
 } from "./types";
 
 /**
@@ -150,4 +153,28 @@ ${content}
   }
 
   return results;
+}
+
+export async function translateTargets(programOpts: CliOptions, translateOpts: TranslateOptions, work: TargetWork[]) {
+  let totalApplied = 0;
+  for (const { target, missing } of work) {
+    console.log(`\n── Translating ${target.name} (${missing.length} keys) ──`);
+    const translations = await translateKeys(missing, {
+      apiKey: translateOpts.apiKey!,
+      model: translateOpts.model,
+      url: translateOpts.url,
+      maxChars: parseInt(programOpts.maxChars, 10),
+      target: target.lang!.name,
+      source: translateOpts.source,
+    });
+
+    if (Object.keys(translations).length === 0) {
+      console.log(`⚠️  No translations received from API for ${target.name}.`);
+      continue;
+    }
+
+    await mergeApiResults(programOpts, translations, missing, target.path);
+    totalApplied += Object.keys(translations).length;
+  }
+  return totalApplied;
 }

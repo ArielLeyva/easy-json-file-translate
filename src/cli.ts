@@ -2,13 +2,20 @@
 
 import { Command } from "commander";
 import { compareFiles } from "./compare";
-import { translateKeys } from "./translate";
-import getFiles, { getPackageVersion, wasOptionProvided } from "./utils";
-import { CliOptions, LANG_MAP, Lang, LangEntry, LangFileEntry } from "./types";
-import { mergeApiResults } from "./merged";
-import { confirmProceed, pickTargetsInteractive, resolveUnknownLanguages } from "./target";
-import { loadInquirer } from "./inquire";
-import { promptApiKey, promptModel, selectProviderUrl } from "./ai";
+import { translateTargets } from "./translate";
+import getFiles, { getPackageVersion, printTargetHeader } from "./utils";
+import { CliOptions, TargetWork } from "./types";
+import {
+  confirmProceed,
+  pickTargetsInteractive,
+  resolveUnknownLanguages,
+} from "./target";
+import {
+  ConfigOptions,
+  findConfigFile,
+  getTranslateOpts,
+  loadConfigFile,
+} from "./config";
 
 const program = new Command();
 
@@ -18,17 +25,22 @@ program
     "Compare JSON translation files and auto-translate missing keys via AI",
   )
   .version(getPackageVersion())
-  .requiredOption(
-    "-b, --base <path>",
-    "Base JSON file with reference translations",
-  )
+  .option("-b, --base <path>", "Base JSON file with reference translations")
   .option(
     "-f, --file <path>",
     "Target JSON file or directory. If omitted, the base file's directory is scanned for *.json files.",
   )
   .option("-k, --api-key <key>", "API key (prompts interactively if omitted)")
-  .option("-m, --model <name>", "Model name (prompts interactively if omitted)", "deepseek-chat")
-  .option("-u, --url <url>", "API base URL (prompts interactively if omitted)", "https://api.deepseek.com/v1")
+  .option(
+    "-m, --model <name>",
+    "Model name (prompts interactively if omitted)",
+    "deepseek-chat",
+  )
+  .option(
+    "-u, --url <url>",
+    "API base URL (prompts interactively if omitted)",
+    "https://api.deepseek.com/v1",
+  )
   .option(
     "-l, --lang <code>",
     "Target language code (auto-detected from filename if omitted)",
@@ -44,35 +56,48 @@ program
     "-i, --interactive",
     "Ask for confirmation before applying each translation",
   )
+  .option(
+    "--config <path>",
+    "Path to a config file. If omitted, searches for .jsontranslaterc.json in CWD and parent dirs.",
+  )
   .parse(process.argv);
 
-const opts = program.opts<CliOptions>();
+let opts = program.opts<CliOptions>();
 
-function printTargetHeader(target: LangFileEntry, index: number, total: number) {
-  const lang = target.lang;
-  let langLabel: string;
-  if (!lang) {
-    langLabel = "(unknown)";
-  } else {
-    const isCustom = !(lang.code in LANG_MAP);
-    const tag = lang.infer
-      ? " (inferred)"
-      : isCustom
-      ? " (custom)"
-      : " (specified)";
-    langLabel = `${lang.name}${tag}`;
+// Load config file.
+const configPath = opts.config || findConfigFile();
+if (configPath) {
+  let config: ConfigOptions;
+  try {
+    config = loadConfigFile(configPath);
+  } catch (err) {
+    console.error(`\n❌ ${(err as Error).message}\n`);
+    process.exit(1);
   }
-  console.log("");
-  console.log(
-    `── Target ${index + 1}/${total}: ${target.name}  [${langLabel}] ──`,
+  console.log(`  Using config: ${configPath}`);
+
+  for (const [key, value] of Object.entries(config)) {
+    if (value === undefined) continue;
+    if (program.getOptionValueSource(key) === "cli") continue;
+
+    const normalized =
+      key === "maxChars" && typeof value !== "string" ? String(value) : value;
+
+    program.setOptionValueWithSource(key, normalized, "config");
+  }
+
+  opts = program.opts<CliOptions>();
+}
+
+// Enforce required options after the config has been merged in
+if (!opts.base) {
+  console.error(
+    '\n❌ Missing required option: -b, --base <path> (or set "base" in your config file)\n',
   );
+  process.exit(1);
 }
 
 async function main() {
-  let url = opts.url;
-  let model = opts.model;
-  let apiKey = opts.apiKey || process.env.OPENAI_API_KEY;
-
   // 1. Scan files
   const { source, targets: initialTargets } = await getFiles(opts);
 
@@ -113,7 +138,6 @@ async function main() {
   console.log(`Targets: ${targets.length}`);
 
   // 6. First pass: compare each target, show what's missing, collect work.
-  type TargetWork = { target: LangFileEntry; missing: LangEntry[] };
   const work: TargetWork[] = [];
 
   for (let i = 0; i < targets.length; i++) {
@@ -163,65 +187,19 @@ async function main() {
     return;
   }
 
-  // 8. Ask for URL/model/api-key, because we know there's actual work to do.
-  if (!wasOptionProvided(program, "url")) {
-    const iq = await loadInquirer();
-    if (!iq) {
-      console.error(
-        "\n❌ No URL provided and no interactive terminal is available. Pass -u <url>.\n",
-      );
-      process.exit(1);
-    }
-    const { url: selectedUrl, suggestedModel } = await selectProviderUrl();
-    url = selectedUrl;
-    // If model wasn't explicitly passed either, suggest the default for this provider
-    if (!wasOptionProvided(program, "model")) {
-      model = (await promptModel(suggestedModel)).trim();
-    }
-  } else if (!wasOptionProvided(program, "model")) {
-    // URL was provided but model wasn't — prompt with a generic default
-    const iq = await loadInquirer();
-    if (iq) {
-      model = (await promptModel("gpt-4o-mini")).trim();
-    } else {
-      console.error(
-        `\n⚠️ No model specified and no interactive terminal. Falling back to: ${model}\n`,
-      );
-    }
-  }
-
-  if (!apiKey) {
-    apiKey = (await promptApiKey()).trim();
-  }
-
-  console.log(`\nUsing: ${model}@${url}`);
+  const translateOpts = await getTranslateOpts(opts, program);
+  translateOpts.source = source.lang?.name;
+  console.log(`\nUsing: ${translateOpts.model}@${translateOpts.url}`);
 
   // 9. Second pass: actually translate
-  let totalApplied = 0;
-  for (const { target, missing } of work) {
-    console.log(`\n── Translating ${target.name} (${missing.length} keys) ──`);
-    const translations = await translateKeys(missing, {
-      apiKey: apiKey!,
-      model,
-      url,
-      maxChars: parseInt(opts.maxChars, 10),
-      target: target.lang!.name,
-      source: source.lang?.name,
-    });
-
-    if (Object.keys(translations).length === 0) {
-      console.log(`⚠️  No translations received from API for ${target.name}.`);
-      continue;
-    }
-
-    await mergeApiResults(opts, translations, missing, target.path);
-    totalApplied += Object.keys(translations).length;
-  }
+  let totalApplied = await translateTargets(opts, translateOpts, work);
 
   // 10. Final summary
   console.log("");
   if (totalApplied > 0) {
-    console.log(`Done. Applied ${totalApplied} translation(s) across ${targets.length} target(s).`);
+    console.log(
+      `Done. Applied ${totalApplied} translation(s) across ${targets.length} target(s).`,
+    );
   } else {
     console.log("Done. No translations applied.");
   }

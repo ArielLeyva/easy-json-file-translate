@@ -30,6 +30,7 @@ export interface CliOptions {
   dryRun: boolean;
   translate: boolean;
   interactive: boolean;
+  config?: string;
 }
 
 export const LANG_MAP: Record<string, string> = {
@@ -98,11 +99,11 @@ export const LANG_MAP: Record<string, string> = {
 };
 
 export interface TranslateOptions {
-  apiKey: string;
+  apiKey?: string;
   model?: string;
   url?: string;
   maxChars?: number;
-  target: string;
+  target?: string;
   source?: string;
 }
 
@@ -122,3 +123,5 @@ export interface LangFileEntries {
   source: LangFileEntry;
   targets: LangFileEntry[];
 }
+
+export type TargetWork = { target: LangFileEntry; missing: LangEntry[] };

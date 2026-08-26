@@ -83,6 +83,71 @@ the model name, then enter the API key. No flags required to get going.
 | | `--dry-run` | Show missing keys without writing changes | `false` |
 | | `--no-translate` | Skip AI translation (just compare) | `false` |
 | `-i` | `--interactive` | Ask for confirmation before applying each translation | `false` |
+| | `--config <path>` | Path to a config file. If omitted, the tool looks for `.jsontranslaterc.json` in the CWD and parent dirs. | Auto-discovered |
+
+## Configuration File
+
+For projects where you run the same command repeatedly, you can keep all the
+flags in a JSON file at the project root instead of typing them every time.
+
+Create `.jsontranslaterc.json`:
+
+```json
+{
+  "base": "locales/en.json",
+  "file": "locales/",
+  "model": "deepseek-chat",
+  "url": "https://api.deepseek.com/v1",
+  "maxChars": 2000,
+  "dryRun": false,
+  "translate": true,
+  "interactive": false
+}
+```
+
+Then just run:
+
+```bash
+json-translate
+```
+
+…from inside that project. The tool searches the current directory and walks
+up to the filesystem root looking for `.jsontranslaterc.json`. The first match
+wins. If no file is found, the CLI behaves as before.
+
+Want to point at a different file? Use `--config`:
+
+```bash
+json-translate --config ./configs/prod.json
+```
+
+### Supported keys
+
+Every CLI flag has a matching key in the config file, using the same name as
+in the CLI Options table above (e.g. `maxChars`, `sourceLang`, `dryRun`).
+Everything is optional — start with an empty `{}` and add what you need.
+
+### Precedence
+
+When a value could come from multiple sources, this is the order, from
+highest to lowest:
+
+1. **CLI flag** — anything you pass on the command line wins.
+2. **Config file** — fills in anything you didn't pass on the CLI.
+3. **Built-in default** — e.g. `model: "deepseek-chat"`, `url: "https://api.deepseek.com/v1"`.
+4. **Interactive prompt** — only kicks in for `url`, `model`, and `apiKey`
+   when neither the CLI nor the config provided a value.
+
+### A note on the API key
+
+**`apiKey` is never read from the config file.** Even if you put it there, the
+tool will warn and ignore it. API keys must come from:
+
+- the `OPENAI_API_KEY` environment variable, or
+- the `-k` / `--api-key` CLI flag.
+
+This is intentional — config files tend to be committed to git, and
+committing API keys is a leak waiting to happen.
 
 ## Examples
 
